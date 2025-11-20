@@ -27,10 +27,9 @@
     padding: 4vh;
   }
 
-  /* Responsive black iPhone */
   .phone {
-    width: min(90vw, 400px);   /* scales with screen size */
-    aspect-ratio: 9 / 19.5;    /* iPhone shape */
+    width: min(90vw, 400px);
+    aspect-ratio: 9 / 19.5;
     background: #000;
     border-radius: 48px;
     position: relative;
@@ -64,17 +63,16 @@
     overflow: hidden;
   }
 
-  /* Grid of 3 columns */
   .grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 5px; /* adjust gap here */
+    gap: 5px;
     flex-grow: 1;
   }
 
   .cell {
     background: var(--light);
-    aspect-ratio: 1 / 1;
+    aspect-ratio: 1;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -96,44 +94,93 @@
     text-align: center;
   }
 
-  /* Hide Add Photo button (if you don’t want it) */
-  .footer { display: none; }
-
-  /* Make everything scale on smaller screens */
-  @media (max-width: 768px) {
-    .screen { padding: 16px; }
-    .grid { gap: 4px; }
+  /* POPUP */
+  .popup-bg {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
   }
 
-  @media (max-width: 480px) {
-    .phone {
-      width: 95vw;
-    }
+  .popup {
+    background: white;
+    padding: 20px;
+    border-radius: 14px;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .popup img {
+    max-width: 70vw;
+    max-height: 70vh;
+    object-fit: contain;
+    border-radius: 10px;
+  }
+
+  .popup-buttons {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  button {
+    padding: 10px 16px;
+    border: none;
+    background: var(--accent);
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .delete-btn {
+    background: #d90000;
   }
 </style>
 </head>
 <body>
-  <div class="stage">
-    <div class="phone">
-      <div class="notch"></div>
-      <div class="screen">
-        <div class="grid" id="grid"></div>
-        <div class="footer">
-          <button id="addBtn" class="add-btn">Add Photo</button>
-        </div>
-      </div>
+
+<!-- POPUP -->
+<div class="popup-bg" id="popupBg">
+  <div class="popup">
+    <img id="popupImg" />
+    <div class="popup-buttons">
+      <button id="changeBtn">Change</button>
+      <button class="delete-btn" id="closeBtn">Delete Photo</button>
     </div>
   </div>
+</div>
 
-  <input type="file" id="fileInput" accept="image/*" style="display:none" />
+<div class="stage">
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="grid" id="grid"></div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" style="display:none" />
 
 <script>
 const STORAGE_KEY = 'iphone_photo_grid_responsive';
 const TOTAL_CELLS = 18;
 const grid = document.getElementById('grid');
 const fileInput = document.getElementById('fileInput');
+
 let photos = new Array(TOTAL_CELLS).fill(null);
 let currentIndex = null;
+
+/* POPUP ELEMENTS */
+const popupBg = document.getElementById("popupBg");
+const popupImg = document.getElementById("popupImg");
+const changeBtn = document.getElementById("changeBtn");
+const deleteBtn = document.getElementById("closeBtn");
 
 function init() {
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -143,6 +190,7 @@ function init() {
 
 function renderGrid() {
   grid.innerHTML = '';
+
   for (let i = 0; i < TOTAL_CELLS; i++) {
     const cell = document.createElement('div');
     cell.className = 'cell';
@@ -159,24 +207,47 @@ function renderGrid() {
       cell.appendChild(placeholder);
     }
 
-    cell.addEventListener('click', () => {
-      currentIndex = i;
-      fileInput.click();
-    });
-
+    cell.addEventListener('click', () => openPopup(i));
     grid.appendChild(cell);
   }
 }
 
+/* POPUP */
+function openPopup(i) {
+  currentIndex = i;
+
+  if (photos[i]) {
+    popupImg.src = photos[i];
+  } else {
+    popupImg.src = "";
+  }
+
+  popupBg.style.display = "flex";
+}
+
+/* DELETE PHOTO (former close button) */
+deleteBtn.onclick = () => {
+  photos[currentIndex] = null;
+  save();
+  renderGrid();
+  popupBg.style.display = "none";
+};
+
+/* CHANGE PHOTO */
+changeBtn.onclick = () => fileInput.click();
+
+/* FILE INPUT */
 fileInput.addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];
   e.target.value = '';
   if (!file || !file.type.startsWith('image/')) return;
+
   const dataURL = await readFileAsDataURL(file);
   photos[currentIndex] = dataURL;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(photos));
+
+  save();
   renderGrid();
-  currentIndex = null;
+  openPopup(currentIndex);
 });
 
 function readFileAsDataURL(file) {
@@ -186,6 +257,10 @@ function readFileAsDataURL(file) {
     r.onerror = reject;
     r.readAsDataURL(file);
   });
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(photos));
 }
 
 init();
