@@ -16,19 +16,21 @@
     font-family: Inter, "Helvetica Neue", Arial, sans-serif;
     background: #ffffff;
     display: flex;
-    align-items: center;
     justify-content: center;
+    overflow-y: auto;
+    align-items: flex-start;
   }
 
   .stage {
     display: flex;
-    align-items: center;
     justify-content: center;
-    padding: 4vh;
+    padding: 40px 0;
+    box-sizing: border-box;
+    width: 100%;
   }
 
   .phone {
-    width: min(90vw, 400px);
+    width: min(100vw, 400px);
     aspect-ratio: 9 / 19.5;
     background: #000;
     border-radius: 48px;
@@ -225,7 +227,7 @@ function openPopup(i) {
   popupBg.style.display = "flex";
 }
 
-/* DELETE PHOTO (former close button) */
+/* DELETE PHOTO */
 deleteBtn.onclick = () => {
   photos[currentIndex] = null;
   save();
