@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Responsive iPhone Mockup - Photo Grid</title>
+
 <style>
   :root {
     --accent: #0a84ff;
@@ -17,8 +18,8 @@
     background: #ffffff;
     display: flex;
     justify-content: center;
-    overflow-y: auto;
-    align-items: flex-start;
+    align-items: flex-start;      /* important */
+    overflow-y: auto;             /* important */
   }
 
   .stage {
@@ -96,7 +97,7 @@
     text-align: center;
   }
 
-  /* POPUP */
+  /* POPUP BACKDROP */
   .popup-bg {
     position: fixed;
     inset: 0;
@@ -107,7 +108,9 @@
     z-index: 999;
   }
 
+  /* POPUP CARD */
   .popup {
+    position: relative;
     background: white;
     padding: 20px;
     border-radius: 14px;
@@ -143,17 +146,37 @@
   .delete-btn {
     background: #d90000;
   }
+
+  /* X CLOSE BUTTON */
+  .popup-close-x {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    background: rgba(0,0,0,0.65);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 </style>
 </head>
+
 <body>
 
 <!-- POPUP -->
 <div class="popup-bg" id="popupBg">
   <div class="popup">
+    <button class="popup-close-x" id="closeX">✕</button>
     <img id="popupImg" />
     <div class="popup-buttons">
       <button id="changeBtn">Change</button>
-      <button class="delete-btn" id="closeBtn">Delete Photo</button>
+      <button class="delete-btn" id="deleteBtn">Delete Photo</button>
     </div>
   </div>
 </div>
@@ -172,18 +195,20 @@
 <script>
 const STORAGE_KEY = 'iphone_photo_grid_responsive';
 const TOTAL_CELLS = 18;
+
 const grid = document.getElementById('grid');
 const fileInput = document.getElementById('fileInput');
+
+const popupBg = document.getElementById("popupBg");
+const popupImg = document.getElementById("popupImg");
+const changeBtn = document.getElementById("changeBtn");
+const deleteBtn = document.getElementById("deleteBtn");
+const closeX = document.getElementById("closeX");
 
 let photos = new Array(TOTAL_CELLS).fill(null);
 let currentIndex = null;
 
-/* POPUP ELEMENTS */
-const popupBg = document.getElementById("popupBg");
-const popupImg = document.getElementById("popupImg");
-const changeBtn = document.getElementById("changeBtn");
-const deleteBtn = document.getElementById("closeBtn");
-
+/* INIT */
 function init() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) photos = JSON.parse(saved);
@@ -214,18 +239,17 @@ function renderGrid() {
   }
 }
 
-/* POPUP */
+/* OPEN POPUP */
 function openPopup(i) {
   currentIndex = i;
-
-  if (photos[i]) {
-    popupImg.src = photos[i];
-  } else {
-    popupImg.src = "";
-  }
-
+  popupImg.src = photos[i] || "";
   popupBg.style.display = "flex";
 }
+
+/* CLOSE POPUP (X) */
+closeX.onclick = () => {
+  popupBg.style.display = "none";
+};
 
 /* DELETE PHOTO */
 deleteBtn.onclick = () => {
@@ -246,7 +270,6 @@ fileInput.addEventListener('change', async (e) => {
 
   const dataURL = await readFileAsDataURL(file);
   photos[currentIndex] = dataURL;
-
   save();
   renderGrid();
   openPopup(currentIndex);
@@ -267,5 +290,6 @@ function save() {
 
 init();
 </script>
+
 </body>
 </html>
