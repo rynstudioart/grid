@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>iPhone Photo Grid</title>
+<title>iPhone Photo Grid - Fixed</title>
 
 <style>
   :root {
@@ -30,14 +30,15 @@
     box-sizing: border-box;
   }
 
+  /* phone frame */
   .phone {
-    width: min(100vw, 420px);     /* telefon mai lat */
+    width: min(100vw, 420px);     /* telefon puțin mai lat */
     aspect-ratio: 9 / 19.5;
     background: #000;
     border-radius: 48px;
     position: relative;
 
-    /* shadow ORIGINAL */
+    /* shadow original */
     box-shadow: 0 20px 45px rgba(0,0,0,0.3);
 
     display: flex;
@@ -45,11 +46,12 @@
     justify-content: center;
     overflow: hidden;
 
-    /* mărim marginile laterale */
-    padding-left: 5px;
-    padding-right: 5px;
+    /* margină internă laterală pentru a nu părea tăiat */
+    padding-left: 10px;
+    padding-right: 10px;
   }
 
+  /* notch (nu blochează click-urile) */
   .notch {
     position: absolute;
     top: 1.2%;
@@ -58,25 +60,29 @@
     width: 42%;
     height: 3.4%;
     background: #111;
-    border-radius: 10px;
+    border-radius: 14px;
     z-index: 10;
+    pointer-events: none; /* important: nu blochează click */
   }
 
+  /* screen adus peste notch pentru a se asigura că grid-ul primește click */
   .screen {
     width: 90%;
     height: 90%;
     background: #ffffff;
-    border-radius: 24px;
+    border-radius: 36px;
     padding: 20px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
+    z-index: 20;
   }
 
   .grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 5px;
+    gap: 6px;
     flex-grow: 1;
   }
 
@@ -90,20 +96,25 @@
     border: 0.5px solid #eee;
     border-radius: 8px;
     overflow: hidden;
+    user-select: none;
   }
 
   .cell img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    display: block;
+    pointer-events: none; /* ca evenimentul de click să fie prins de cell, nu de img */
   }
 
   .placeholder {
     font-size: 13px;
     color: rgba(0,0,0,0.35);
+    text-align: center;
+    padding: 6px;
   }
 
-  /* POPUP BACKGROUND */
+  /* POPUP BACKDROP */
   .popup-bg {
     position: fixed;
     inset: 0;
@@ -111,10 +122,10 @@
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 999;
+    z-index: 9999;
   }
 
-  /* POPUP BODY */
+  /* POPUP CARD */
   .popup {
     position: relative;
     background: white;
@@ -122,25 +133,28 @@
     border-radius: 14px;
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 12px;
     max-width: 90vw;
     max-height: 90vh;
+    box-sizing: border-box;
   }
 
   .popup img {
-    max-width: 70vw;
-    max-height: 70vh;
+    max-width: 72vw;
+    max-height: 68vh;
     object-fit: contain;
-    border-radius: 10px;
+    border-radius: 8px;
+    display: block;
   }
 
   .popup-buttons {
     display: flex;
     justify-content: space-between;
+    gap: 8px;
   }
 
   button {
-    padding: 10px 16px;
+    padding: 10px 14px;
     border: none;
     background: var(--accent);
     color: #fff;
@@ -153,11 +167,11 @@
     background: #d90000;
   }
 
-  /* CLOSE X BUTTON */
+  /* CLOSE X BUTTON (colț dreapta sus) */
   .popup-close-x {
     position: absolute;
     top: 10px;
-    right: 14px;
+    right: 12px;
     background: rgba(0,0,0,0.65);
     color: white;
     border: none;
@@ -170,123 +184,245 @@
     align-items: center;
     justify-content: center;
   }
+
+  /* responsive tweaks */
+  @media (max-width: 420px) {
+    .phone { width: calc(100vw - 24px); }
+    .popup img { max-width: 88vw; max-height: 60vh; }
+  }
 </style>
 </head>
-
 <body>
 
 <!-- POPUP -->
-<div class="popup-bg" id="popupBg">
-  <div class="popup">
-    <button class="popup-close-x" id="closeX">✕</button>
-    <img id="popupImg">
+<div class="popup-bg" id="popupBg" aria-hidden="true" role="dialog">
+  <div class="popup" role="document">
+    <button class="popup-close-x" id="closeX" aria-label="Close popup">✕</button>
+    <img id="popupImg" alt="Preview">
     <div class="popup-buttons">
-      <button id="changeBtn">Change</button>
-      <button class="delete-btn" id="deleteBtn">Delete Photo</button>
+      <button id="changeBtn" type="button">Change</button>
+      <button class="delete-btn" id="deleteBtn" type="button">Delete Photo</button>
     </div>
   </div>
 </div>
 
 <div class="stage">
-  <div class="phone">
-    <div class="notch"></div>
+  <div class="phone" aria-hidden="false">
+    <div class="notch" aria-hidden="true"></div>
     <div class="screen">
-      <div class="grid" id="grid"></div>
+      <div class="grid" id="grid" aria-label="photo grid"></div>
     </div>
   </div>
 </div>
 
-<input type="file" id="fileInput" accept="image/*" style="display:none">
+<input type="file" id="fileInput" accept="image/*" style="display:none" />
 
 <script>
-const STORAGE_KEY = 'iphone_photo_grid_responsive';
+/*
+  Robust implementation:
+   - event delegation on grid
+   - consistent IDs for popup controls
+   - protections if currentIndex is null
+   - save() always called on mutations
+*/
+
+const STORAGE_KEY = 'iphone_photo_grid_responsive_v1';
 const TOTAL_CELLS = 18;
 
 const grid = document.getElementById('grid');
 const fileInput = document.getElementById('fileInput');
 
-const popupBg = document.getElementById("popupBg");
-const popupImg = document.getElementById("popupImg");
-const changeBtn = document.getElementById("changeBtn");
-const deleteBtn = document.getElementById("deleteBtn");
-const closeX = document.getElementById("closeX");
+const popupBg = document.getElementById('popupBg');
+const popupImg = document.getElementById('popupImg');
+const changeBtn = document.getElementById('changeBtn');
+const deleteBtn = document.getElementById('deleteBtn');
+const closeX = document.getElementById('closeX');
 
 let photos = new Array(TOTAL_CELLS).fill(null);
 let currentIndex = null;
 
+/* Initialize - load saved state and render */
 function init() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) photos = JSON.parse(saved);
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // sanity: ensure array length
+      if (Array.isArray(parsed)) {
+        photos = parsed.slice(0, TOTAL_CELLS);
+        // pad if shorter
+        while (photos.length < TOTAL_CELLS) photos.push(null);
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to load saved photos:', err);
+  }
   renderGrid();
 }
 
+/* Render the grid from photos[] */
 function renderGrid() {
   grid.innerHTML = '';
-
   for (let i = 0; i < TOTAL_CELLS; i++) {
     const cell = document.createElement('div');
     cell.className = 'cell';
     cell.dataset.index = i;
+    cell.setAttribute('role', 'button');
+    cell.setAttribute('tabindex', '0');
 
     if (photos[i]) {
       const img = document.createElement('img');
       img.src = photos[i];
+      img.alt = `Photo ${i+1}`;
       cell.appendChild(img);
     } else {
-      const placeholder = document.createElement('div');
-      placeholder.className = 'placeholder';
-      placeholder.textContent = 'Add photo';
-      cell.appendChild(placeholder);
+      const ph = document.createElement('div');
+      ph.className = 'placeholder';
+      ph.textContent = 'Add photo';
+      cell.appendChild(ph);
     }
 
-    cell.addEventListener('click', () => openPopup(i));
     grid.appendChild(cell);
   }
 }
 
-function openPopup(i) {
-  currentIndex = i;
-  popupImg.src = photos[i] || "";
-  popupBg.style.display = "flex";
+/* Event delegation: click on any .cell */
+grid.addEventListener('click', (e) => {
+  const cell = e.target.closest('.cell');
+  if (!cell) return;
+  const idx = Number(cell.dataset.index);
+  if (Number.isNaN(idx)) return;
+  openPopup(idx);
+});
+
+/* also allow keyboard Enter/Space to open */
+grid.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    const cell = e.target.closest('.cell');
+    if (!cell) return;
+    e.preventDefault();
+    const idx = Number(cell.dataset.index);
+    if (Number.isNaN(idx)) return;
+    openPopup(idx);
+  }
+});
+
+/* Open popup for a given index */
+function openPopup(index) {
+  currentIndex = index;
+  popupImg.src = photos[index] || '';
+  popupBg.style.display = 'flex';
+  popupBg.setAttribute('aria-hidden', 'false');
 }
 
-closeX.onclick = () => popupBg.style.display = "none";
+/* Close popup function */
+function closePopup() {
+  popupBg.style.display = 'none';
+  popupBg.setAttribute('aria-hidden', 'true');
+  // keep currentIndex as-is or clear? we'll clear to avoid accidental file picks without context
+  currentIndex = null;
+  // clear preview src to release memory if big images
+  popupImg.src = '';
+}
 
-deleteBtn.onclick = () => {
+/* Close X (just closes popup) */
+closeX.addEventListener('click', () => {
+  closePopup();
+});
+
+/* Delete Photo (removes photo at currentIndex) */
+deleteBtn.addEventListener('click', () => {
+  if (currentIndex === null || currentIndex === undefined) {
+    // nothing to delete
+    closePopup();
+    return;
+  }
   photos[currentIndex] = null;
   save();
   renderGrid();
-  popupBg.style.display = "none";
-};
-
-changeBtn.onclick = () => fileInput.click();
-
-fileInput.addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  e.target.value = '';
-  if (!file) return;
-
-  const dataURL = await readFile(file);
-  photos[currentIndex] = dataURL;
-  save();
-  renderGrid();
-  openPopup(currentIndex);
+  closePopup();
 });
 
-function readFile(file) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.readAsDataURL(file);
+/* Change Photo (open file picker) */
+changeBtn.addEventListener('click', () => {
+  if (currentIndex === null || currentIndex === undefined) {
+    // guard: shouldn't happen because Change is inside popup, but be safe
+    return;
+  }
+  // reset input value so same file can be re-chosen
+  fileInput.value = '';
+  fileInput.click();
+});
+
+/* File input handler */
+fileInput.addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  // reset input so future same-file picks still fire change
+  e.target.value = '';
+
+  if (!file) {
+    return;
+  }
+
+  if (!file.type.startsWith('image/')) {
+    alert('Please select an image file.');
+    return;
+  }
+
+  if (currentIndex === null || currentIndex === undefined) {
+    // If for some reason currentIndex is missing, do nothing
+    alert('No slot selected. Re-open a slot first.');
+    return;
+  }
+
+  try {
+    const dataURL = await readFileAsDataURL(file);
+    photos[currentIndex] = dataURL;
+    save();
+    renderGrid();
+    // keep popup open and refresh preview
+    openPopup(currentIndex);
+  } catch (err) {
+    console.error('Failed to read file:', err);
+    alert('Could not load the image.');
+  }
+});
+
+/* Utility to read file as data URL */
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = (err) => reject(err);
+    r.readAsDataURL(file);
   });
 }
 
+/* Save to localStorage with try/catch for quota */
 function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(photos));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(photos));
+  } catch (err) {
+    console.warn('Saving to localStorage failed:', err);
+    // Attempt simple fallback: remove some large items (not implemented here) or notify user
+    alert('Saving failed — localStorage might be full.');
+  }
 }
 
+/* Close popup when clicking outside the .popup card */
+popupBg.addEventListener('click', (e) => {
+  if (e.target === popupBg) closePopup();
+});
+
+/* Optional: close on Escape key */
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && popupBg.style.display === 'flex') {
+    closePopup();
+  }
+});
+
+/* initialize */
 init();
 </script>
-
 </body>
 </html>
